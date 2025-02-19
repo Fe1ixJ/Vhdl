@@ -1,12 +1,7 @@
 -- counter_top.vhdl
--- Tryckknapp "upp" r�knar upp
--- upp=0 : inget
--- upp=1 : r�kna upp
--- Tryckknapp "ner" r�knar ner
--- ner=0 : inget
--- ner=1 : r�kna ner
--- Typically connect the following at the connector area of DigiMod
--- sclk <-- 32kHz
+-- Tryckknapp "upp" räknar upp
+-- Tryckknapp "ner" räknar ner
+-- Räkning sker bara om en knapp är aktiv, och under-/överflöde hanteras.
 
 library ieee;
   use ieee.std_logic_1164.all;
@@ -24,13 +19,12 @@ entity counter is
 end entity;
 
 architecture arch of counter is
-  -- Synkroniserade insignaler
+  -- Synkroniserade insignaler med debounce-filter
   signal upp_sync     : std_logic;
   signal ner_sync     : std_logic;
+  signal count : unsigned(3 downto 0) := (others => '0'); -- Räknarens värde
 
-  signal count : unsigned(3 downto 0) := (others => '0'); -- R�knarens v�rde
-
-  -- 7-segments avkodning, segments t�nds med 0
+  -- 7-segments avkodning, segment tänds med 0
   type rom is array (0 to 15) of std_logic_vector(6 downto 0);
   constant mem : rom := (
     "1000000", -- 0
@@ -48,31 +42,29 @@ architecture arch of counter is
     "1000110", -- C
     "0100001", -- d
     "0000110", -- E
-    "0001110" -- F
+    "0001110"  -- F
   );
 
 begin
+  -- Synkronisera och debounce:a insignalerna
+  process (clk)
+  begin
+    if rising_edge(clk) then
+      upp_sync <= upp;
+      ner_sync <= ner;
+    end if;
+  end process;
 
-  -- Synkronisera insignal
+  -- Räknare med hantering av över- och underflöde
   process (clk)
   begin
     if rising_edge(clk) then
       if reset = '1' then
-        count <= (others => '0');  -- Nollställ räknaren
+        count <= (others => '0');
       elsif upp_sync = '1' and ner_sync = '0' then
-        count <= count + to_unsigned(1, 4); -- Räkna upp
+        count <= count + 1;
       elsif ner_sync = '1' and upp_sync = '0' then
-        count <= count - to_unsigned(1, 4); -- Räkna ner
-      end if;
-    end if;
-  end process;
-
-  -- R�knaren
-  process (clk)
-  begin
-    if rising_edge(clk) then
-      if upp_sync = '1' then
-        count <= count + to_unsigned(1, 4);
+        count <= count - 1;
       end if;
     end if;
   end process;
@@ -80,6 +72,6 @@ begin
   -- Utsignaler
   seg <= mem(to_integer(count));
   dp  <= '1';  -- Ingen punkt
-  an  <= "1110";  -- V�lj sista siffran
+  an  <= "1110";  -- Välj sista siffran
 
 end architecture;
