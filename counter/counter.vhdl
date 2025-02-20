@@ -20,8 +20,12 @@ end entity;
 
 architecture arch of counter is
   -- Synkroniserade insignaler med debounce-filter
-  signal upp_sync     : std_logic;
-  signal ner_sync     : std_logic;
+  signal upp_sync      : std_logic := '0';
+  signal upp_sync_old  : std_logic := '0';
+  signal down_sync     : std_logic := '0';
+  signal down_sync_old : std_logic := '0';
+  signal inc           : std_logic := '0';
+  signal dec           : std_logic := '0';
   signal count : unsigned(3 downto 0) := (others => '0'); -- Räknarens värde
 
   -- 7-segments avkodning, segment tänds med 0
@@ -49,25 +53,32 @@ begin
   -- Synkronisera och debounce:a insignalerna
   process (clk)
   begin
-    if rising_edge(clk) then
-      upp_sync <= upp;
-      ner_sync <= ner;
+    if rising_edge ( clk ) then
+      upp_sync <= upp ;
+      upp_sync_old <= upp_sync ;
+      
+      down_sync <= ner ;
+      down_sync_old <= down_sync ;
     end if;
   end process;
+      inc <= upp_sync and not upp_sync_old ;
+      dec <= down_sync and not down_sync_old;
+
 
   -- Räknare med hantering av över- och underflöde
-  process (clk)
+  process (clk, reset)
   begin
-    if rising_edge(clk) then
-      if reset = '1' then
-        count <= (others => '0');
-      elsif upp_sync = '1' and ner_sync = '0' then
+    if reset = '1' then
+      count <= (others => '0');  -- Nollställ räknaren
+    elsif rising_edge(clk) then  -- Endast om reset inte är aktiv
+      if inc = '1' and down_sync = '0' then
         count <= count + 1;
-      elsif ner_sync = '1' and upp_sync = '0' then
+      elsif dec = '1' and upp_sync = '0' then
         count <= count - 1;
       end if;
     end if;
   end process;
+  
 
   -- Utsignaler
   seg <= mem(to_integer(count));
